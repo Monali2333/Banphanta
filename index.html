@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ระบบจัดการคิวงานส่วนตัว</title>
+    
+    <!-- Google Fonts: Itim -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Itim&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SweetAlert2 for notifications -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        milk: {
+                            green: '#A3C9A8',      /* เขียวอ่อนนม (สำหรับปุ่ม/เน้นข้อความ) */
+                            greenhover: '#8BB491', /* เขียวอ่อนนมตอนโฮเวอร์ */
+                            bg: '#D5E8D4',         /* สีพื้นหลังเขียวพาสเทลอ่อนๆนมๆ */
+                            text: '#4E6053',       /* สีตัวอักษรเขียวอมเทาเข้ม */
+                            gray: '#E4E6DF'        /* เทาอมครีม */
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Itim', 'cursive', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            color: #4E6053;
+        }
+        
+        /* คลาสพื้นหลังลายดอกไม้สีขาวสไตล์มินิมอลแบบ 5 แฉก */
+        .bg-floral {
+            background-color: #D5E8D4;
+            background-image: url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.7'%3E%3Cg transform='translate(30, 30)'%3E%3Ccircle cx='0' cy='-9' r='7'/%3E%3Ccircle cx='8.5' cy='-2.8' r='7'/%3E%3Ccircle cx='5.3' cy='7.3' r='7'/%3E%3Ccircle cx='-5.3' cy='7.3' r='7'/%3E%3Ccircle cx='-8.5' cy='-2.8' r='7'/%3E%3Ccircle cx='0' cy='0' r='4' fill='%23D5E8D4'/%3E%3C/g%3E%3Cg transform='translate(90, 90)'%3E%3Ccircle cx='0' cy='-9' r='7'/%3E%3Ccircle cx='8.5' cy='-2.8' r='7'/%3E%3Ccircle cx='5.3' cy='7.3' r='7'/%3E%3Ccircle cx='-5.3' cy='7.3' r='7'/%3E%3Ccircle cx='-8.5' cy='-2.8' r='7'/%3E%3Ccircle cx='0' cy='0' r='4' fill='%23D5E8D4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            background-size: 160px 160px;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #E4E6DF; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #A3C9A8; }
+        
+        /* เพิ่ม CSS สำหรับซ่อน/แสดงเมนูบน Desktop */
+        @media (min-width: 768px) {
+            .mobile-only { display: none !important; }
+            .desktop-only { display: block !important; }
+            .desktop-flex { display: flex !important; }
+            
+            /* ปรับ Layout ให้แสดงผล 2 คอลัมน์บน Desktop */
+            .desktop-layout {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+                height: calc(100vh - 120px); /* ลบความสูงของ Header และ Padding */
+            }
+            
+            /* ให้ทั้ง 2 แท็บแสดงผลพร้อมกันบน Desktop */
+            .tab-content { display: block !important; animation: none !important; }
+            
+            /* ซ่อน Nav Bar ด้านล่างบน Desktop */
+            .bottom-nav { display: none !important; }
+        }
+        @media (max-width: 767px) {
+            .desktop-only { display: none !important; }
+            .desktop-flex { display: none !important; }
+            .tab-content { display: none; }
+            .tab-content.active { display: block; animation: fadeIn 0.25s ease-in-out; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        }
+    </style>
+</head>
+<body class="bg-floral min-h-screen font-sans selection:bg-milk-green selection:text-white flex justify-center md:items-start md:pt-6">
+
+    <!-- ขยายความกว้างสูงสุดบน Desktop (md:max-w-5xl) และปรับให้ยืดหยุ่น -->
+    <div class="w-full max-w-md md:max-w-5xl h-screen md:h-auto flex flex-col bg-transparent sm:shadow-xl sm:rounded-[2rem] sm:my-[2.5vh] md:my-0 md:mb-6 overflow-hidden relative sm:border border-milk-gray/40 md:bg-white/90 md:backdrop-blur-sm">
+        
+        <!-- HEADER (Fixed Top Bar) -->
+        <header class="bg-transparent shrink-0 z-20 pt-4 px-4 pb-2.5 relative md:pt-6 md:px-8">
+            <div class="bg-white p-3.5 md:p-5 rounded-3xl shadow-sm border border-milk-gray/40 flex justify-between items-start md:items-center gap-2">
+                <div class="pl-2 flex-1">
+                    <div class="group inline-block" onclick="editShopInfo()">
+                        <h1 id="shop-name" class="text-2xl md:text-3xl font-semibold text-milk-text tracking-tight cursor-pointer select-none">
+                            BANPHANTA SERVICE
+                        </h1>
+                        <p id="shop-desc" class="text-[11px] md:text-sm text-gray-500 mt-0.5 leading-snug cursor-pointer relative pr-4 pb-1 border-b border-milk-gray/50 md:border-none md:pb-0">
+                            รับทำพ.ร.บ., ต่อทะเบียน, ประกันภัย 1/2/2+/3/3+, โอน, ย้าย
+                            <i id="edit-shop-icon" class="fa-solid fa-pen text-[9px] md:text-xs text-milk-green absolute right-0 top-1 md:top-0 opacity-0 group-hover:opacity-100 transition-opacity hidden"></i>
+                        </p>
+                        <div id="shop-contact" class="mt-1.5 md:mt-2 text-[10px] md:text-xs text-gray-500 space-y-0.5 md:flex md:space-y-0 md:gap-4 md:border-t md:border-milk-gray/50 md:pt-2">
+                            <p><i class="fa-solid fa-phone text-milk-green w-3.5 md:w-auto text-center mr-0.5"></i> โทร./FAX.038-657-949, มือถือ 090-084-1680</p>
+                            <p><i class="fa-solid fa-envelope text-milk-green w-3.5 md:w-auto text-center mr-0.5"></i> E-mail : km-2521@hotmail.com</p>
+                            <p><i class="fa-brands fa-line text-milk-green w-3.5 md:w-auto text-center mr-0.5 text-xs"></i> Line ID : tal.km</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Profile Pic & Direct Toggle Button Container -->
+                <div class="flex flex-col items-center flex-shrink-0 pt-1 md:pt-0 md:flex-row md:gap-4">
+                    <!-- ปุ่มเพิ่มงานบน Desktop -->
+                    <button id="add-task-btn-desktop" onclick="openFormModal()" class="desktop-flex hidden bg-milk-green hover:bg-milk-greenhover text-white px-4 py-2 rounded-xl shadow-sm items-center gap-2 transition-transform hover:scale-105 font-medium text-sm">
+                        <i class="fa-solid fa-plus"></i> เพิ่มงานใหม่
+                    </button>
+
+                    <div class="flex flex-col items-center">
+                        <div id="profile-container" class="w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-milk-green/30 shadow-sm overflow-hidden relative group bg-white" onclick="handleProfileClick()">
+                            <img id="profile-image" src="https://upload-1.imgz.click/2026/08/monalishop.rexzy.xyz/messageImage_1786503511301-1786503667-1786503668.jpg" alt="Profile" class="w-full h-full object-cover">
+                            <div id="profile-overlay" class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity hidden">
+                                <i class="fa-solid fa-camera text-[10px] md:text-sm"></i>
+                            </div>
+                            <input type="file" id="profile-input" class="hidden" accept="image/*" onchange="previewImage(event, 'profile-image')">
+                        </div>
+                        <!-- Role Indicator / Toggle Button -->
+                        <button id="auth-role-btn" onclick="handleAuthButtonClick()" class="mt-1.5 md:mt-2 text-[9px] md:text-[10px] font-medium px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-white text-milk-green border border-milk-green shadow-sm hover:bg-milk-green hover:text-white transition-colors flex items-center justify-center min-w-[50px] md:min-w-[60px]">
+                            GUEST
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-3.5 pb-24 md:pb-6 md:px-8 relative md:overflow-hidden">
+            
+            <!-- Scrollable Banner & Calendar Button -->
+            <div class="mb-4 md:mb-6">
+                <div id="banner-container" class="w-full h-28 md:h-40 rounded-2xl md:rounded-3xl overflow-hidden shadow-sm relative group border-[2px] border-white bg-white" onclick="handleBannerClick()">
+                    <img id="cover-image" src="https://placehold.co/1200x400/E4E6DF/4E6053?text=Banner" alt="Cover" class="w-full h-full object-cover">
+                    <div id="banner-overlay" class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity hidden">
+                        <span class="bg-white/90 text-milk-text text-[10px] md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-full shadow-sm flex items-center gap-1.5 font-medium backdrop-blur-sm"><i class="fa-solid fa-pen text-[9px] md:text-xs"></i> เปลี่ยนแบนเนอร์</span>
+                    </div>
+                    <input type="file" id="cover-input" class="hidden" accept="image/*" onchange="previewImage(event, 'cover-image')">
+                </div>
+                
+                <div class="flex justify-end mt-2 md:mt-3 px-1 relative">
+                    <button onclick="toggleCalendarPopup(event)" class="bg-white text-milk-text text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-lg md:rounded-xl shadow-sm flex items-center gap-1.5 font-medium hover:text-milk-green transition-colors border border-milk-gray relative z-20">
+                        <i class="fa-regular fa-calendar-days text-milk-green"></i> ปฏิทิน
+                        <i id="calendar-popup-icon" class="fa-solid fa-chevron-down text-[9px] md:text-xs ml-0.5 transition-transform duration-300"></i>
+                    </button>
+
+                    <!-- Calendar Popup -->
+                    <div id="calendar-popup" onclick="event.stopPropagation()" class="hidden absolute top-full right-0 mt-1.5 bg-white p-3.5 md:p-5 rounded-2xl md:rounded-3xl shadow-xl border border-milk-gray w-[260px] md:w-[320px] z-50">
+                        <div class="flex justify-between items-center mb-3 md:mb-4">
+                            <button onclick="changeMonth(event, -1)" class="w-7 h-7 md:w-8 md:h-8 rounded-full hover:bg-milk-green/10 flex items-center justify-center text-milk-green transition-colors">
+                                <i class="fa-solid fa-chevron-left text-xs md:text-sm"></i>
+                            </button>
+                            <h2 id="calendar-month-year" class="text-sm md:text-base text-milk-text font-medium select-none">เดือน ปี</h2>
+                            <button onclick="changeMonth(event, 1)" class="w-7 h-7 md:w-8 md:h-8 rounded-full hover:bg-milk-green/10 flex items-center justify-center text-milk-green transition-colors">
+                                <i class="fa-solid fa-chevron-right text-xs md:text-sm"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-7 text-center text-[10px] md:text-xs text-milk-green mb-1.5 md:mb-2 font-medium">
+                            <div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div>
+                        </div>
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-y-1 md:gap-y-2 gap-x-1 md:gap-x-2 text-center text-xs md:text-sm">
+                            <!-- JS Injected Calendar Days -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- คอนเทนเนอร์หุ้มทั้ง 2 แท็บสำหรับ Desktop -->
+            <div class="desktop-layout">
+
+                <!-- View: Queue (หน้าหลัก) -->
+                <div id="view-queue" class="tab-content active md:bg-white/50 md:p-5 md:rounded-3xl md:border md:border-milk-gray/40 md:overflow-y-auto md:h-full">
+                    <div class="flex justify-between items-center mb-3 px-1.5 md:px-0">
+                        <div class="flex items-baseline gap-2 md:gap-3">
+                            <h2 class="text-lg md:text-xl text-milk-text italic font-medium leading-none">Today's Work</h2>
+                            <span class="text-[10px] md:text-xs text-milk-green font-medium bg-white px-2 md:px-2.5 py-0.5 md:py-1 rounded-lg shadow-sm border border-milk-gray/40 flex items-center gap-1" id="current-date-display"></span>
+                        </div>
+                        <span class="text-xs md:text-sm bg-milk-green text-white px-2.5 md:px-3 py-0.5 md:py-1 rounded-full shadow-sm leading-none" id="pending-count">0 งาน</span>
+                    </div>
+                    <div id="queue-container" class="space-y-2.5 md:space-y-3">
+                        <!-- Tasks will be injected here -->
+                    </div>
+                </div>
+
+                <!-- View: Manage (หลังบ้าน) -->
+                <div id="view-manage" class="tab-content md:bg-white/50 md:p-5 md:rounded-3xl md:border md:border-milk-gray/40 md:overflow-y-auto md:h-full">
+                    <div class="flex justify-between items-center mb-3 px-1.5 md:px-0">
+                        <div class="flex items-center gap-1.5">
+                            <h2 class="text-lg md:text-xl text-milk-text font-medium">จัดการคิวงาน</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-1.5 md:gap-2 mb-3 md:mb-4 overflow-x-auto pb-1.5 px-0.5 md:px-0 scrollbar-hide">
+                        <button onclick="filterManage('all')" id="filter-all" class="filter-btn active-filter px-3.5 md:px-4 py-1 md:py-1.5 rounded-full text-sm md:text-base bg-milk-green/10 border border-milk-green text-milk-text shadow-sm whitespace-nowrap transition-colors">ทั้งหมด</button>
+                        <button onclick="filterManage('pending')" id="filter-pending" class="filter-btn px-3.5 md:px-4 py-1 md:py-1.5 rounded-full text-sm md:text-base bg-white text-gray-500 whitespace-nowrap border border-transparent hover:bg-white/60 transition-colors">รอดำเนินการ</button>
+                        <button onclick="filterManage('in_progress')" id="filter-in_progress" class="filter-btn px-3.5 md:px-4 py-1 md:py-1.5 rounded-full text-sm md:text-base bg-white text-gray-500 whitespace-nowrap border border-transparent hover:bg-white/60 transition-colors">กำลังดำเนินการ</button>
+                        <button onclick="filterManage('completed')" id="filter-completed" class="filter-btn px-3.5 md:px-4 py-1 md:py-1.5 rounded-full text-sm md:text-base bg-white text-gray-500 whitespace-nowrap border border-transparent hover:bg-white/60 transition-colors">เสร็จสิ้น</button>
+                    </div>
+
+                    <div id="manage-container" class="space-y-2.5 md:space-y-3">
+                        <!-- Tasks to manage will be injected here -->
+                    </div>
+                </div>
+
+            </div> <!-- จบ desktop-layout -->
+
+        </main>
+
+        <!-- FLOATING BOTTOM NAV BAR (Mobile Only) -->
+        <div class="absolute bottom-3 left-0 w-full px-5 z-20 pointer-events-none bottom-nav">
+            <nav class="bg-white/95 backdrop-blur-md border border-milk-gray/60 shadow-[0_8px_20px_-4px_rgba(163,201,168,0.25)] rounded-full pointer-events-auto max-w-[240px] mx-auto py-1.5 px-6">
+                <div class="flex justify-between items-center">
+                    <button onclick="switchTab('queue')" id="nav-queue" class="nav-btn active flex items-center justify-center p-1.5 text-milk-green transition-transform hover:scale-110" title="หน้าหลัก">
+                        <i class="fa-regular fa-file-lines text-xl leading-none"></i>
+                    </button>
+                    
+                    <!-- Center Add Button (Visible only for Admin) -->
+                    <button id="add-task-btn" onclick="openFormModal()" class="hidden bg-milk-green hover:bg-milk-greenhover text-white w-9 h-9 rounded-full shadow-sm flex items-center justify-center transition-transform hover:scale-110" title="เพิ่มงาน">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
+
+                    <button onclick="switchTab('manage')" id="nav-manage" class="nav-btn flex items-center justify-center p-1.5 text-gray-300 hover:text-milk-green transition-transform hover:scale-110" title="จัดการคิวงาน">
+                        <i class="fa-solid fa-pen text-xl leading-none"></i>
+                    </button>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Admin Login Modal -->
+        <div id="admin-modal" class="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 sm:rounded-[2rem] overflow-hidden px-4 md:px-0">
+            <div id="admin-modal-content" class="bg-white w-full max-w-[260px] md:max-w-sm rounded-2xl md:rounded-3xl p-5 md:p-8 flex flex-col transform scale-95 transition-transform duration-300 shadow-xl border border-milk-gray">
+                <div class="text-center mb-4 md:mb-6">
+                    <div class="w-12 h-12 md:w-16 md:h-16 bg-milk-bg rounded-full flex items-center justify-center mx-auto mb-2 md:mb-4 border border-milk-green/30 shadow-sm">
+                        <i class="fa-solid fa-shield-halved text-xl md:text-3xl text-milk-green"></i>
+                    </div>
+                    <h2 class="text-lg md:text-2xl text-milk-text font-medium">เข้าสู่ระบบแอดมิน</h2>
+                    <p class="text-[11px] md:text-sm text-gray-400 mt-1">กรอกรหัสผ่านเพื่อจัดการคิวงาน</p>
+                </div>
+                
+                <div class="mb-4 md:mb-6">
+                    <input type="password" id="admin-password" inputmode="numeric" pattern="[0-9]*" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2.5 md:py-3.5 focus:outline-none focus:border-milk-green focus:bg-white text-center text-lg md:text-2xl tracking-[0.5em] md:tracking-[1em]" placeholder="••••" onkeypress="if(event.key === 'Enter') verifyAdmin()">
+                </div>
+                
+                <div class="flex gap-2 md:gap-3">
+                    <button onclick="closeAdminModal()" class="flex-1 bg-gray-100 text-gray-500 py-2 md:py-3 rounded-xl md:rounded-2xl hover:bg-gray-200 transition-colors text-xs md:text-base font-medium">ยกเลิก</button>
+                    <button onclick="verifyAdmin()" class="flex-1 bg-milk-green hover:bg-milk-greenhover text-white py-2 md:py-3 rounded-xl md:rounded-2xl shadow-sm transition-colors text-xs md:text-base font-medium">ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Form Modal (Add/Edit) -->
+        <div id="task-modal" class="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end md:items-center justify-center hidden opacity-0 transition-opacity duration-300 sm:rounded-[2rem] overflow-hidden">
+            <div id="task-modal-content" class="bg-white w-full md:max-w-lg h-[88%] md:h-auto md:max-h-[90vh] rounded-t-[1.5rem] sm:rounded-t-[2rem] md:rounded-[2rem] p-5 md:p-8 flex flex-col transform translate-y-full md:translate-y-10 md:scale-95 transition-all duration-300 shadow-2xl">
+                <div class="flex justify-between items-center mb-3 md:mb-5 shrink-0">
+                    <h2 id="modal-title" class="text-xl md:text-2xl font-medium text-milk-text">เพิ่มงานใหม่</h2>
+                    <button onclick="closeFormModal()" class="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center rounded-full bg-milk-bg text-gray-500 hover:bg-gray-200 transition-colors">
+                        <i class="fa-solid fa-xmark text-xs md:text-sm"></i>
+                    </button>
+                </div>
+                
+                <div class="overflow-y-auto flex-1 pr-1 md:pr-2 pb-3 md:pb-0 space-y-3 md:space-y-4 custom-scrollbar">
+                    <input type="hidden" id="task-id">
+                    <div>
+                        <label class="block text-sm md:text-base mb-1 md:mb-2 text-milk-text font-medium">ชื่องาน <span class="text-red-400">*</span></label>
+                        <input type="text" id="task-title" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-3 focus:outline-none focus:border-milk-green focus:bg-white text-sm md:text-base transition-colors" placeholder="เช่น ส่งรายงาน, ประชุมทีม">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2.5 md:gap-4">
+                        <div>
+                            <label class="block text-sm md:text-base mb-1 md:mb-2 text-milk-text font-medium">วันที่ <span class="text-red-400">*</span></label>
+                            <input type="date" id="task-date" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-3 focus:outline-none focus:border-milk-green focus:bg-white text-sm md:text-base transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-sm md:text-base mb-1 md:mb-2 text-milk-text font-medium">เวลา <span class="text-red-400">*</span></label>
+                            <input type="time" id="task-time" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-3 focus:outline-none focus:border-milk-green focus:bg-white text-sm md:text-base transition-colors">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm md:text-base mb-1 md:mb-2 text-milk-text font-medium">รายละเอียด</label>
+                        <textarea id="task-desc" rows="3" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-3 focus:outline-none focus:border-milk-green focus:bg-white text-sm md:text-base resize-none transition-colors" placeholder="รายละเอียดเพิ่มเติม..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm md:text-base mb-1 md:mb-2 text-milk-text font-medium">สถานะ</label>
+                        <select id="task-status" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-3 focus:outline-none focus:border-milk-green focus:bg-white text-sm md:text-base transition-colors cursor-pointer">
+                            <option value="pending">รอดำเนินการ</option>
+                            <option value="in_progress">กำลังดำเนินการ</option>
+                            <option value="completed">เสร็จสิ้น</option>
+                        </select>
+                    </div>
+
+                    <!-- Image Upload -->
+                    <div>
+                        <label class="block text-sm md:text-base mb-1 md:mb-2 text-milk-text font-medium">แนบรูปภาพ</label>
+                        <div class="border-2 border-dashed border-milk-green/50 bg-milk-bg/30 rounded-xl md:rounded-2xl p-3 md:p-5 text-center cursor-pointer hover:bg-milk-bg/80 transition-colors relative group" onclick="document.getElementById('task-image-input').click()">
+                            <input type="file" id="task-image-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+                            <div id="image-placeholder" class="text-gray-400 py-2">
+                                <div class="w-10 h-10 md:w-12 md:h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-2 shadow-sm group-hover:scale-110 transition-transform">
+                                    <i class="fa-solid fa-camera text-milk-green text-base md:text-lg"></i>
+                                </div>
+                                <p class="text-xs md:text-sm">แตะเพื่อเลือกรูปภาพ หรือลากไฟล์มาวาง</p>
+                            </div>
+                            <div id="image-preview-container" class="hidden relative">
+                                <img id="image-preview" src="" alt="Preview" class="max-h-32 md:max-h-40 mx-auto rounded-lg md:rounded-xl shadow-sm border border-milk-gray">
+                                <button type="button" onclick="removeImage(event)" class="absolute -top-2 -right-2 bg-red-400 hover:bg-red-500 text-white w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center shadow-md border-2 border-white transition-colors">
+                                    <i class="fa-solid fa-xmark text-[10px] md:text-xs"></i>
+                                </button>
+                            </div>
+                            <canvas id="compression-canvas" class="hidden"></canvas>
+                        </div>
+                        <input type="hidden" id="task-image-base64">
+                    </div>
+                </div>
+                
+                <div class="pt-4 md:pt-6 shrink-0 flex gap-2 md:gap-3 border-t border-milk-gray/30 mt-2">
+                    <button id="delete-task-btn" type="button" onclick="deleteCurrentTask()" class="hidden bg-red-50 text-red-500 border border-red-200 hover:bg-red-500 hover:text-white rounded-xl md:rounded-2xl shadow-sm transition-colors text-base w-12 md:w-14 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-trash text-sm md:text-base"></i>
+                    </button>
+                    <button onclick="saveTask()" class="flex-1 w-full bg-milk-green hover:bg-milk-greenhover text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl shadow-sm shadow-milk-green/30 transition-transform hover:scale-[1.02] text-base md:text-lg font-medium">บันทึกข้อมูล</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getLocalDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        const todayStr = getLocalDateString(new Date());
+        let tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = getLocalDateString(tomorrow);
+        
+        let yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = getLocalDateString(yesterday);
+
+        const mockTasks = [
+            {
+                id: "t1",
+                title: "ประชุมโปรเจกต์กับลูกค้า",
+                desc: "เตรียมเอกสารสรุปยอดขายเดือนที่แล้ว และแผนการตลาดเดือนถัดไป",
+                date: todayStr,
+                time: "14:00",
+                status: "pending",
+                image: ""
+            },
+            {
+                id: "t2",
+                title: "ส่งไฟล์ให้ทีมออกแบบ",
+                desc: "ไฟล์โลโก้และโทนสีใหม่",
+                date: tomorrowStr,
+                time: "10:30",
+                status: "in_progress",
+                image: ""
+            },
+            {
+                id: "t3",
+                title: "ซื้อของเข้าร้าน",
+                desc: "แป้ง, เนยสด, น้ำตาล",
+                date: yesterdayStr,
+                time: "18:00",
+                status: "completed",
+                image: ""
+            }
+        ];
+
+        let tasks = [];
+        let currentFilter = 'all';
+        let currentTab = 'queue';
+        let isAdmin = false;
+        const ADMIN_PIN = "1234"; // รหัสผ่านสำหรับแอดมิน
+        
+        let currentDateForCalendar = new Date();
+        let selectedDateString = getLocalDateString(new Date());
+
+        function init() {
+            // ตั้งค่าวันที่แบบย่อ (เช่น 11 ส.ค. 69)
+            const options = { day: 'numeric', month: 'short', year: '2-digit' };
+            document.getElementById('current-date-display').innerHTML = `<i class="fa-regular fa-calendar text-[10px]"></i> ${new Date().toLocaleDateString('th-TH', options)}`;
+
+            const savedProfile = localStorage.getItem('profile-image');
+            if (savedProfile) document.getElementById('profile-image').src = savedProfile;
+            
+            const savedCover = localStorage.getItem('cover-image');
+            if (savedCover) document.getElementById('cover-image').src = savedCover;
+            
+            const savedShopName = localStorage.getItem('shop-name');
+            if (savedShopName) document.getElementById('shop-name').innerText = savedShopName;
+            
+            const savedShopDesc = localStorage.getItem('shop-desc');
+            if (savedShopDesc) document.getElementById('shop-desc').innerHTML = `${savedShopDesc} <i id="edit-shop-icon" class="fa-solid fa-pen text-[9px] md:text-xs text-milk-green absolute right-0 top-1 md:top-0 opacity-0 group-hover:opacity-100 transition-opacity hidden"></i>`;
+
+            loadData();
+            renderQueue();
+            renderManage();
+            renderCalendar();
+            updateAuthButtonUI();
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('myTasks');
+            if (saved) {
+                tasks = JSON.parse(saved);
+            } else {
+                tasks = [...mockTasks]; 
+                saveData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('myTasks', JSON.stringify(tasks));
+        }
+
+        function updateAuthButtonUI() {
+            const btn = document.getElementById('auth-role-btn');
+            const addBtn = document.getElementById('add-task-btn');
+            const addBtnDesktop = document.getElementById('add-task-btn-desktop');
+            const profileOverlay = document.getElementById('profile-overlay');
+            const bannerOverlay = document.getElementById('banner-overlay');
+            const profileContainer = document.getElementById('profile-container');
+            const bannerContainer = document.getElementById('banner-container');
+            const editShopIcon = document.getElementById('edit-shop-icon');
+            
+            if (isAdmin) {
+                btn.innerHTML = `ADMIN`;
+                btn.className = "mt-1.5 md:mt-2 text-[9px] md:text-[10px] font-medium px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-milk-green text-white shadow-sm hover:bg-milk-greenhover transition-colors flex items-center justify-center min-w-[50px] md:min-w-[60px]";
+                if (addBtn) addBtn.classList.remove('hidden');
+                if (addBtnDesktop) {
+                    addBtnDesktop.classList.remove('hidden');
+                    addBtnDesktop.classList.add('desktop-flex'); // ใช้ class พิเศษสำหรับแสดงผลแบบ flex เฉพาะบน desktop
+                }
+                if (profileOverlay) profileOverlay.classList.remove('hidden');
+                if (bannerOverlay) bannerOverlay.classList.remove('hidden');
+                if (profileContainer) profileContainer.classList.add('cursor-pointer');
+                if (bannerContainer) bannerContainer.classList.add('cursor-pointer');
+                if (editShopIcon) editShopIcon.classList.remove('hidden');
+            } else {
+                btn.innerHTML = `GUEST`;
+                btn.className = "mt-1.5 md:mt-2 text-[9px] md:text-[10px] font-medium px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-white text-milk-green border border-milk-green shadow-sm hover:bg-milk-green hover:text-white transition-colors flex items-center justify-center min-w-[50px] md:min-w-[60px]";
+                if (addBtn) addBtn.classList.add('hidden');
+                if (addBtnDesktop) {
+                    addBtnDesktop.classList.add('hidden');
+                    addBtnDesktop.classList.remove('desktop-flex');
+                }
+                if (profileOverlay) profileOverlay.classList.add('hidden');
+                if (bannerOverlay) bannerOverlay.classList.add('hidden');
+                if (profileContainer) profileContainer.classList.remove('cursor-pointer');
+                if (bannerContainer) bannerContainer.classList.remove('cursor-pointer');
+                if (editShopIcon) editShopIcon.classList.add('hidden');
+            }
+            
+            if (currentTab === 'manage') renderManage();
+            if (currentTab === 'queue') renderQueue();
+        }
+        
+        function editShopInfo() {
+            if (!isAdmin) return;
+            
+            const currentName = document.getElementById('shop-name').innerText;
+            // ดึงเฉพาะบรรทัดแรกของ shop-desc
+            const currentDescFull = document.getElementById('shop-desc').innerText;
+            const currentDesc = currentDescFull.split('\n')[0].trim();
+            
+            Swal.fire({
+                title: '<span class="text-xl md:text-2xl text-milk-text font-medium">แก้ไขข้อมูลร้าน</span>',
+                html: `
+                    <div class="space-y-3 md:space-y-4 mt-3 md:mt-4 text-left">
+                        <div>
+                            <label class="block text-sm md:text-base text-milk-text mb-1 md:mb-2">ชื่อร้าน</label>
+                            <input id="swal-input-shopname" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-milk-green text-base text-milk-text" value="${currentName}">
+                        </div>
+                        <div>
+                            <label class="block text-sm md:text-base text-milk-text mb-1 md:mb-2">รายละเอียดร้าน</label>
+                            <textarea id="swal-input-shopdesc" class="w-full bg-milk-bg/50 border border-milk-gray rounded-xl md:rounded-2xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-milk-green text-sm md:text-base text-milk-text resize-none" rows="2">${currentDesc}</textarea>
+                        </div>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึก',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#A3C9A8',
+                cancelButtonColor: '#E4E6DF',
+                customClass: { popup: 'rounded-[1.5rem] md:rounded-[2rem] border border-milk-gray shadow-2xl', confirmButton: 'rounded-xl md:rounded-2xl shadow-sm text-sm md:text-base px-6 py-2.5 font-medium', cancelButton: 'rounded-xl md:rounded-2xl text-gray-600 text-sm md:text-base px-6 py-2.5 font-medium' },
+                preConfirm: () => {
+                    return {
+                        name: document.getElementById('swal-input-shopname').value,
+                        desc: document.getElementById('swal-input-shopdesc').value
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const newName = result.value.name || 'BANPHANTA SERVICE';
+                    const newDesc = result.value.desc || 'รับทำพ.ร.บ., ต่อทะเบียน, ประกันภัย 1/2/2+/3/3+, โอน, ย้าย';
+                    
+                    document.getElementById('shop-name').innerText = newName;
+                    document.getElementById('shop-desc').innerHTML = `${newDesc} <i id="edit-shop-icon" class="fa-solid fa-pen text-[9px] md:text-xs text-milk-green absolute right-0 top-1 md:top-0 opacity-0 group-hover:opacity-100 transition-opacity"></i>`;
+                    
+                    localStorage.setItem('shop-name', newName);
+                    localStorage.setItem('shop-desc', newDesc);
+                    
+                    updateAuthButtonUI();
+                }
+            });
+        }
+
+        function handleProfileClick() {
+            if (isAdmin) {
+                document.getElementById('profile-input').click();
+            }
+        }
+
+        function handleBannerClick() {
+            if (isAdmin) {
+                document.getElementById('cover-input').click();
+            }
+        }
+
+        function handleAuthButtonClick() {
+            if (!isAdmin) {
+                openAdminModal();
+            } else {
+                adminLogout();
+            }
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            // บน Desktop แท็บทั้งหมดจะโชว์พร้อมกันอยู่แล้ว ดังนั้นไม่ต้องซ่อน
+            if (window.innerWidth < 768) {
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.getElementById(`view-${tabId}`).classList.add('active');
+            }
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-milk-green');
+                btn.classList.add('text-gray-300');
+            });
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('text-gray-300');
+                activeBtn.classList.add('text-milk-green');
+            }
+
+            if(tabId === 'queue') renderQueue();
+            if(tabId === 'manage') renderManage();
+        }
+
+        function openAdminModal() {
+            document.getElementById('admin-password').value = '';
+            const adminModal = document.getElementById('admin-modal');
+            const adminModalContent = document.getElementById('admin-modal-content');
+            
+            adminModal.classList.remove('hidden');
+            setTimeout(() => {
+                adminModal.classList.remove('opacity-0');
+                adminModalContent.classList.remove('scale-95');
+                adminModalContent.classList.add('scale-100');
+                document.getElementById('admin-password').focus();
+            }, 10);
+        }
+
+        function closeAdminModal() {
+            const adminModal = document.getElementById('admin-modal');
+            const adminModalContent = document.getElementById('admin-modal-content');
+            
+            adminModal.classList.add('opacity-0');
+            adminModalContent.classList.remove('scale-100');
+            adminModalContent.classList.add('scale-95');
+            setTimeout(() => {
+                adminModal.classList.add('hidden');
+            }, 300);
+        }
+
+        function verifyAdmin() {
+            const pwd = document.getElementById('admin-password').value;
+            if (pwd === ADMIN_PIN) {
+                isAdmin = true;
+                updateAuthButtonUI();
+                closeAdminModal();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'เข้าสู่ระบบแล้ว',
+                    showConfirmButton: false,
+                    timer: 1000,
+                    customClass: { popup: 'rounded-2xl' }
+                });
+                
+                switchTab('manage');
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'รหัสไม่ถูกต้อง',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    customClass: { popup: 'rounded-2xl' }
+                });
+                document.getElementById('admin-password').value = '';
+                document.getElementById('admin-password').focus();
+            }
+        }
+
+        function adminLogout() {
+            isAdmin = false;
+            updateAuthButtonUI();
+            switchTab('queue');
+            Swal.fire({
+                icon: 'info',
+                title: 'ออกจากระบบแล้ว',
+                showConfirmButton: false,
+                timer: 1200,
+                customClass: { popup: 'rounded-2xl' }
+            });
+        }
+
+        function formatDateTime(dateStr, timeStr) {
+            const date = new Date(`${dateStr}T${timeStr}`);
+            return date.toLocaleString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function setTaskStatus(event, id, newStatus) {
+            if(event) event.stopPropagation();
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            task.status = newStatus;
+            saveData();
+            refreshAllViews();
+        }
+
+        function renderQueue() {
+            const container = document.getElementById('queue-container');
+            container.innerHTML = '';
+
+            let pendingTasks = tasks.filter(t => t.date === selectedDateString && t.status !== 'completed');
+            pendingTasks.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+
+            document.getElementById('pending-count').textContent = `${pendingTasks.length} งาน`;
+
+            if (pendingTasks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 md:py-16 text-gray-400 bg-white rounded-2xl md:rounded-3xl border border-milk-gray">
+                        <div class="w-12 h-12 md:w-16 md:h-16 bg-milk-bg rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3">
+                            <i class="fa-solid fa-mug-hot text-xl md:text-2xl text-milk-green/60"></i>
+                        </div>
+                        <p class="text-sm md:text-base text-milk-text font-medium">ไม่มีคิวงานที่ต้องทำแล้ว</p>
+                        <p class="text-xs md:text-sm mt-1">พักผ่อนจิบชาได้เลย!</p>
+                    </div>`;
+                return;
+            }
+
+            pendingTasks.forEach((task, index) => {
+                const isOverdue = new Date(`${task.date}T${task.time}`) < new Date();
+                const timeColor = isOverdue ? 'text-red-400' : 'text-milk-green';
+                
+                let statusBadge = '';
+                if (task.status === 'in_progress') {
+                    statusBadge = '<span class="bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded border border-blue-200 text-[9px] md:text-[10px] align-middle whitespace-nowrap">กำลังดำเนินการ</span>';
+                } else if (task.status === 'pending') {
+                    statusBadge = '<span class="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-200 text-[9px] md:text-[10px] align-middle whitespace-nowrap">รอดำเนินการ</span>';
+                }
+
+                let rightSideHtml = '';
+                if (isAdmin) {
+                    const isCompleted = task.status === 'completed';
+                    const targetStatus = isCompleted ? 'pending' : 'completed';
+                    const btnClass = isCompleted ? 'bg-milk-green text-white hover:bg-milk-greenhover' : 'bg-milk-bg/60 text-milk-green hover:bg-milk-green/30 border border-milk-gray hover:border-milk-green';
+
+                    rightSideHtml = `
+                        <div class="flex items-center shrink-0" onclick="event.stopPropagation()">
+                            <button onclick="setTaskStatus(event, '${task.id}', '${targetStatus}')" class="w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center transition-all duration-200 shadow-sm ${btnClass} hover:scale-105" title="${isCompleted ? 'ยกเลิกสถานะเสร็จสิ้น' : 'เสร็จสิ้น'}">
+                                <i class="fa-solid fa-check text-[11px] md:text-xs"></i>
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    rightSideHtml = `
+                        <div class="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-gray-300 shrink-0">
+                            <i class="fa-solid fa-chevron-right text-[10px] md:text-xs"></i>
+                        </div>
+                    `;
+                }
+                
+                const html = `
+                    <div class="bg-white p-3.5 md:p-4 rounded-2xl md:rounded-3xl shadow-sm border border-milk-gray flex gap-3 md:gap-4 items-center transition-all duration-200 hover:-translate-y-1 hover:shadow-md cursor-pointer" onclick="viewTaskDetails('${task.id}')">
+                        <div class="flex flex-col items-center justify-center shrink-0 w-8 md:w-10">
+                            <span class="text-[10px] md:text-[11px] text-gray-400 mb-0.5">คิวที่</span>
+                            <div class="w-7 h-7 md:w-9 md:h-9 rounded-full bg-milk-bg flex items-center justify-center text-sm md:text-base font-medium text-milk-green border border-milk-green/30">
+                                ${index + 1}
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-hidden border-l border-milk-gray/50 pl-3 md:pl-4">
+                            <div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-0.5 md:mb-1">
+                                <h3 class="text-base md:text-lg font-medium text-milk-text line-clamp-1">${task.title}</h3>
+                                ${statusBadge}
+                            </div>
+                            <div class="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm text-gray-500 font-medium">
+                                <i class="fa-regular fa-clock ${timeColor}"></i>
+                                <span class="${timeColor}">${formatDateTime(task.date, task.time)}</span>
+                                ${isOverdue ? '<span class="bg-red-50 text-red-500 px-1.5 md:px-2 py-0.5 rounded border border-red-200 text-[9px] md:text-[10px]">เลยกำหนด</span>' : ''}
+                            </div>
+                        </div>
+                        ${rightSideHtml}
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        function renderManage() {
+            const container = document.getElementById('manage-container');
+            container.innerHTML = '';
+
+            let filteredTasks = [...tasks];
+            if (currentFilter !== 'all') {
+                filteredTasks = tasks.filter(t => t.status === currentFilter);
+            }
+
+            filteredTasks.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+
+            if (filteredTasks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 md:py-16 text-gray-400 bg-white rounded-2xl md:rounded-3xl border border-milk-gray">
+                        <div class="w-12 h-12 md:w-16 md:h-16 bg-milk-bg rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3">
+                            <i class="fa-solid fa-folder-open text-xl md:text-2xl text-milk-green/60"></i>
+                        </div>
+                        <p class="text-sm md:text-base text-milk-text font-medium">ไม่พบรายการงานในหมวดนี้</p>
+                    </div>`;
+                return;
+            }
+
+            filteredTasks.forEach((task) => {
+                let statusBadge = '';
+                let borderStyle = 'border-milk-gray';
+                let textStyle = 'text-milk-text';
+                let hoverStyle = 'hover:-translate-y-1 hover:shadow-md';
+
+                if (task.status === 'completed') {
+                    statusBadge = '<span class="bg-green-50 text-green-600 px-2 py-0.5 rounded border border-green-200 text-[9px] md:text-[10px]">เสร็จสิ้น</span>';
+                    borderStyle = 'border-green-200 bg-gray-50/50 opacity-80';
+                    textStyle = 'text-gray-400 line-through';
+                    hoverStyle = 'hover:opacity-100'; // ให้เห็นชัดขึ้นเมื่อเอาเมาส์ชี้
+                } else if (task.status === 'in_progress') {
+                    statusBadge = '<span class="bg-blue-50 text-blue-500 px-2 py-0.5 rounded border border-blue-200 text-[9px] md:text-[10px]">กำลังดำเนินการ</span>';
+                    borderStyle = 'border-blue-200';
+                } else {
+                    statusBadge = '<span class="bg-amber-50 text-amber-600 px-2 py-0.5 rounded border border-amber-200 text-[9px] md:text-[10px]">รอดำเนินการ</span>';
+                }
+
+                const html = `
+                    <div class="bg-white p-3.5 md:p-4 rounded-2xl md:rounded-3xl shadow-sm border ${borderStyle} flex flex-col gap-2 cursor-pointer transition-all duration-200 ${hoverStyle}" onclick="viewTaskDetails('${task.id}')">
+                        <div class="flex justify-between items-start gap-2">
+                            <div class="flex-1">
+                                <div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-1">
+                                    <h3 class="text-base md:text-lg ${textStyle} font-medium line-clamp-1">${task.title}</h3>
+                                    ${statusBadge}
+                                </div>
+                                <p class="text-xs md:text-sm text-gray-500 font-medium"><i class="fa-regular fa-clock text-milk-green mr-1"></i> ${formatDateTime(task.date, task.time)}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        function filterManage(status) {
+            currentFilter = status;
+            
+            ['all', 'pending', 'in_progress', 'completed'].forEach(id => {
+                const btn = document.getElementById(`filter-${id}`);
+                if(btn) btn.className = 'filter-btn px-3.5 md:px-4 py-1 md:py-1.5 rounded-full text-sm md:text-base bg-white whitespace-nowrap transition-colors text-gray-500 border border-transparent hover:bg-white/60';
+            });
+
+            const activeBtn = document.getElementById(`filter-${status}`);
+            if(activeBtn) activeBtn.className = 'filter-btn active-filter px-3.5 md:px-4 py-1 md:py-1.5 rounded-full text-sm md:text-base bg-milk-green/10 border border-milk-green text-milk-text shadow-sm whitespace-nowrap transition-colors';
+            
+            renderManage();
+        }
+
+        function renderCalendar() {
+            const year = currentDateForCalendar.getFullYear();
+            const month = currentDateForCalendar.getMonth();
+            
+            const monthNames = [
+                "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", 
+                "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+            ];
+            document.getElementById('calendar-month-year').textContent = `${monthNames[month]} ${year + 543}`;
+
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) {
+                grid.innerHTML += `<div></div>`;
+            }
+
+            const todayLocalStr = getLocalDateString(new Date());
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const currentLoopDate = new Date(year, month, i);
+                const dateStr = getLocalDateString(currentLoopDate);
+                
+                const dayTasks = tasks.filter(t => t.date === dateStr);
+                const hasPendingTask = dayTasks.some(t => t.status !== 'completed');
+                const hasCompletedTask = dayTasks.length > 0 && !hasPendingTask;
+                
+                const isSelected = dateStr === selectedDateString;
+                const isToday = dateStr === todayLocalStr;
+
+                let classes = "w-7 h-7 md:w-8 md:h-8 mx-auto flex items-center justify-center rounded-full cursor-pointer transition-colors relative text-xs md:text-sm font-medium ";
+                
+                if (isSelected) {
+                    classes += "bg-milk-green text-white shadow-md";
+                } else if (isToday) {
+                    classes += "border-2 border-milk-green text-milk-green bg-milk-green/10";
+                } else {
+                    classes += "text-gray-600 hover:bg-milk-green/20";
+                }
+
+                let dotHtml = '';
+                if (hasPendingTask) {
+                    dotHtml = `<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-milk-green'}"></div>`;
+                } else if (hasCompletedTask) {
+                    dotHtml = `<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-green-400'}"></div>`;
+                }
+
+                grid.innerHTML += `
+                    <div class="py-1">
+                        <div class="${classes}" onclick="selectDate(event, '${dateStr}')">
+                            ${i}
+                            ${dotHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function changeMonth(event, offset) {
+            if(event) event.stopPropagation();
+            currentDateForCalendar.setMonth(currentDateForCalendar.getMonth() + offset);
+            renderCalendar();
+        }
+
+        function toggleCalendarPopup(event) {
+            if(event) event.stopPropagation();
+            const popup = document.getElementById('calendar-popup');
+            const icon = document.getElementById('calendar-popup-icon');
+            
+            if (popup.classList.contains('hidden')) {
+                popup.classList.remove('hidden');
+                icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+            } else {
+                popup.classList.add('hidden');
+                icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const popup = document.getElementById('calendar-popup');
+            if (popup && !popup.classList.contains('hidden')) {
+                popup.classList.add('hidden');
+                const icon = document.getElementById('calendar-popup-icon');
+                if (icon) icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+            }
+        });
+
+        function selectDate(event, dateStr) {
+            if(event) event.stopPropagation();
+            selectedDateString = dateStr;
+            renderCalendar(); 
+            renderQueue();
+
+            const popup = document.getElementById('calendar-popup');
+            if (popup) popup.classList.add('hidden');
+            const icon = document.getElementById('calendar-popup-icon');
+            if (icon) icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+        }
+
+        const modal = document.getElementById('task-modal');
+        const modalContent = document.getElementById('task-modal-content');
+
+        function openFormModal() {
+            if (!isAdmin) {
+                openAdminModal();
+                return;
+            }
+            clearForm();
+            document.getElementById('modal-title').textContent = 'เพิ่มงานใหม่';
+            document.getElementById('task-date').value = getLocalDateString(new Date());
+            document.getElementById('task-time').value = new Date().toTimeString().substring(0, 5);
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                
+                // เช็คขนาดหน้าจอ ถ้าเป็น Desktop ให้แสดงตรงกลาง ไม่ต้องเลื่อนจากข้างล่าง
+                if (window.innerWidth >= 768) {
+                    modalContent.classList.remove('md:translate-y-10', 'md:scale-95');
+                    modalContent.classList.add('md:translate-y-0', 'md:scale-100');
+                } else {
+                    modalContent.classList.remove('translate-y-full');
+                }
+            }, 10);
+        }
+
+        function closeFormModal() {
+            modal.classList.add('opacity-0');
+            
+            if (window.innerWidth >= 768) {
+                modalContent.classList.remove('md:translate-y-0', 'md:scale-100');
+                modalContent.classList.add('md:translate-y-10', 'md:scale-95');
+            } else {
+                modalContent.classList.add('translate-y-full');
+            }
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function clearForm() {
+            document.getElementById('task-id').value = '';
+            document.getElementById('task-title').value = '';
+            document.getElementById('task-desc').value = '';
+            document.getElementById('task-date').value = '';
+            document.getElementById('task-time').value = '';
+            document.getElementById('task-status').value = 'pending';
+            document.getElementById('task-image-base64').value = '';
+            
+            document.getElementById('image-preview-container').classList.add('hidden');
+            document.getElementById('image-placeholder').classList.remove('hidden');
+            document.getElementById('task-image-input').value = '';
+            
+            const delBtn = document.getElementById('delete-task-btn');
+            if(delBtn) delBtn.classList.add('hidden');
+        }
+
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.getElementById('compression-canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    document.getElementById('task-image-base64').value = dataUrl;
+                    document.getElementById('image-preview').src = dataUrl;
+                    document.getElementById('image-placeholder').classList.add('hidden');
+                    document.getElementById('image-preview-container').classList.remove('hidden');
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage(event) {
+            event.stopPropagation();
+            document.getElementById('task-image-base64').value = '';
+            document.getElementById('image-preview').src = '';
+            document.getElementById('image-preview-container').classList.add('hidden');
+            document.getElementById('image-placeholder').classList.remove('hidden');
+            document.getElementById('task-image-input').value = '';
+        }
+
+        function saveTask() {
+            const title = document.getElementById('task-title').value.trim();
+            if (!title) {
+                Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณากรอกชื่องาน', confirmButtonColor: '#A3C9A8', customClass: { popup: 'rounded-[1.5rem]' } });
+                return;
+            }
+
+            const id = document.getElementById('task-id').value;
+            const newTask = {
+                id: id ? id : 't_' + Date.now(),
+                title: title,
+                desc: document.getElementById('task-desc').value,
+                date: document.getElementById('task-date').value,
+                time: document.getElementById('task-time').value,
+                status: document.getElementById('task-status').value,
+                image: document.getElementById('task-image-base64').value
+            };
+
+            if (id) {
+                const index = tasks.findIndex(t => t.id === id);
+                if (index !== -1) tasks[index] = newTask;
+            } else {
+                tasks.push(newTask);
+            }
+
+            saveData();
+            closeFormModal();
+            refreshAllViews();
+            
+            Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', showConfirmButton: false, timer: 1500, customClass: { popup: 'rounded-[1.5rem]' } });
+        }
+
+        function editTask(id) {
+            if (!isAdmin) {
+                openAdminModal();
+                return;
+            }
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            document.getElementById('modal-title').textContent = 'แก้ไขงาน';
+            document.getElementById('task-id').value = task.id;
+            document.getElementById('task-title').value = task.title;
+            document.getElementById('task-desc').value = task.desc;
+            document.getElementById('task-date').value = task.date;
+            document.getElementById('task-time').value = task.time;
+            document.getElementById('task-status').value = task.status;
+            
+            if (task.image) {
+                document.getElementById('task-image-base64').value = task.image;
+                document.getElementById('image-preview').src = task.image;
+                document.getElementById('image-placeholder').classList.add('hidden');
+                document.getElementById('image-preview-container').classList.remove('hidden');
+            } else {
+                removeImage(new Event('click')); 
+            }
+            
+            const delBtn = document.getElementById('delete-task-btn');
+            if(delBtn) delBtn.classList.remove('hidden');
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                if (window.innerWidth >= 768) {
+                    modalContent.classList.remove('md:translate-y-10', 'md:scale-95');
+                    modalContent.classList.add('md:translate-y-0', 'md:scale-100');
+                } else {
+                    modalContent.classList.remove('translate-y-full');
+                }
+            }, 10);
+        }
+
+        function deleteCurrentTask() {
+            const id = document.getElementById('task-id').value;
+            if (id) {
+                closeFormModal();
+                setTimeout(() => confirmDelete(id), 300);
+            }
+        }
+
+        function confirmDelete(id) {
+            if (!isAdmin) {
+                openAdminModal();
+                return;
+            }
+            Swal.fire({
+                title: 'ยืนยันการลบ?',
+                text: "คุณไม่สามารถกู้คืนข้อมูลนี้ได้!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#E4E6DF',
+                confirmButtonText: 'ใช่, ลบเลย!',
+                cancelButtonText: 'ยกเลิก',
+                reverseButtons: true,
+                customClass: { popup: 'rounded-3xl', confirmButton: 'rounded-xl', cancelButton: 'rounded-xl' }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    tasks = tasks.filter(t => t.id !== id);
+                    saveData();
+                    refreshAllViews();
+                    Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย', showConfirmButton: false, timer: 1500, customClass: { popup: 'rounded-2xl' } });
+                }
+            });
+        }
+
+        function refreshAllViews() {
+            renderQueue();
+            renderManage();
+            renderCalendar();
+        }
+
+        function viewTaskDetails(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            let imgHtml = '';
+            if (task.image) {
+                imgHtml = `<img src="${task.image}" class="w-full h-48 md:h-64 object-cover rounded-xl md:rounded-2xl mb-3 md:mb-4 border border-milk-gray">`;
+            }
+
+            let statusBadge = '';
+            if (task.status === 'completed') {
+                statusBadge = '<span class="bg-green-100 text-green-600 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md text-xs md:text-sm ml-2 align-middle border border-green-200 font-medium">เสร็จสิ้น</span>';
+            } else if (task.status === 'in_progress') {
+                statusBadge = '<span class="bg-blue-100 text-blue-600 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md text-xs md:text-sm ml-2 align-middle border border-blue-200 font-medium">กำลังดำเนินการ</span>';
+            } else {
+                statusBadge = '<span class="bg-amber-100 text-amber-600 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md text-xs md:text-sm ml-2 align-middle border border-amber-200 font-medium">รอดำเนินการ</span>';
+            }
+
+            Swal.fire({
+                title: `<div class="text-milk-text text-xl md:text-2xl font-medium text-left leading-tight">${task.title} ${statusBadge}</div>`,
+                html: `
+                    <div class="text-left mt-3 md:mt-4">
+                        ${imgHtml}
+                        <div class="flex items-center gap-2.5 md:gap-4 text-sm md:text-base text-gray-500 mb-3 md:mb-4 bg-milk-bg inline-block px-3 py-1.5 md:py-2 rounded-lg md:rounded-xl border border-milk-gray font-medium">
+                            <span><i class="fa-regular fa-calendar text-milk-green"></i> ${task.date}</span> 
+                            <span><i class="fa-regular fa-clock text-milk-green"></i> ${task.time}</span>
+                        </div>
+                        <div class="text-base md:text-lg text-gray-700 bg-milk-bg/50 p-3 md:p-4 rounded-xl md:rounded-2xl border border-milk-gray whitespace-pre-wrap min-h-[60px] leading-relaxed">${task.desc || '<span class="text-gray-400 italic">ไม่มีรายละเอียดเพิ่มเติม</span>'}</div>
+                    </div>
+                `,
+                showCloseButton: true,
+                showConfirmButton: isAdmin,
+                confirmButtonText: '<i class="fa-solid fa-pen mr-1"></i> แก้ไขงานนี้',
+                confirmButtonColor: '#A3C9A8',
+                width: window.innerWidth >= 768 ? '600px' : undefined, // ให้ popup กว้างขึ้นถ้าเป็น desktop
+                customClass: { popup: 'rounded-[1.5rem] md:rounded-[2rem] border border-milk-green/20 shadow-2xl', confirmButton: 'rounded-xl md:rounded-2xl w-full mt-3 md:mt-4 text-base md:text-lg py-2.5 md:py-3 shadow-sm font-medium hover:scale-[1.02] transition-transform' }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    editTask(task.id);
+                }
+            });
+        }
+
+        function previewImage(event, targetId) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgData = e.target.result;
+                    document.getElementById(targetId).src = imgData;
+                    try {
+                        localStorage.setItem(targetId, imgData);
+                    } catch (e) {
+                        console.warn("Storage is full, couldn't save image locally.");
+                    }
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
